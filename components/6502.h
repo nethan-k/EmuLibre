@@ -4,6 +4,8 @@
 #include <vector>
 #include <string>
 
+#include "bus.h"
+
 class Bus;
 
 class CPU6502 {
@@ -12,7 +14,7 @@ class CPU6502 {
 		CPU6502();
 		~CPU6502();
 
-		Bus* bus;
+		Bus* bus = nullptr;
 
 		/* internal registers */
 		uint8_t a = 0x00;	/* accumulator */
@@ -40,7 +42,7 @@ class CPU6502 {
 
 		struct INSTRUCTION {
 			std::string name;
-			void (CPU6502::*op)(void) = nullptr;
+			uint8_t (CPU6502::*op)(void) = nullptr;
 			uint8_t (CPU6502::*am)(void) = nullptr;
 			uint8_t cycles = 0;
 		};
@@ -55,7 +57,7 @@ class CPU6502 {
 
 
 		uint8_t get_flag(FLAGS f);
-		void set_flag(FLAGS f, uint8_t v);
+		void set_flag(FLAGS f, bool v);
 
 		uint8_t fetch();
 

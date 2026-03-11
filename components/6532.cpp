@@ -15,12 +15,10 @@ RIOT6532::~RIOT6532() {
 }
 
 uint8_t RIOT6532::read_ram(uint8_t addr) {
-	std::cout << "reached riot ram read" << std::endl;
 	return ram[addr];
 }
 
 void RIOT6532::write_ram(uint8_t addr, uint8_t val) {
-	std::cout << "reached riot ram write" << std::endl;
 	ram[addr] = val;
 }
 

@@ -1,8 +1,6 @@
 #include "6502.h"
 #include "bus.h"
 
-#include <iostream>
-
 CPU6502::CPU6502() {
 
 	/* lookup table with instruction name, operation, addressing mode, no. of clock cycles */
@@ -292,7 +290,7 @@ CPU6502::~CPU6502() {
 */
 
 /* reset signal */
-void reset() {
+void CPU6502::reset() {
 
 	/* set program counter */
 	uint8_t hi = bus->read(0xfffc);
@@ -312,7 +310,7 @@ void reset() {
 }
 
 /* interrupt request */
-void irq() {
+void CPU6502::irq() {
 	if(get_flag(I) == 0) {
 		
 		/* push program counter to stack */
@@ -335,7 +333,7 @@ void irq() {
 }
 
 /* non-maskable interrupt */
-void nmi() {
+void CPU6502::nmi() {
 	
 	/* push program counter to stack */
 	bus->write(0x0100+sp--, (pc >> 8) & 0x00ff);
@@ -356,7 +354,7 @@ void nmi() {
 }
 
 /* clock signal */
-void clock() {
+void CPU6502::clock() {
 	if(cycles == 0) {
 		set_flag(U, true); /* always set */
 
@@ -413,10 +411,14 @@ uint8_t CPU6502::fetch() {
  * The operand is a 16 bit address.
 */
 uint8_t CPU6502::am_abs() {
+
+	/* fetch address */
 	uint16_t lo = bus->read(pc++);
 	uint16_t hi = bus->read(pc++);
-
 	addr = (hi << 8) | lo;
+
+	/* fetch data */
+	fetched = bus->read(addr);
 	return 0;
 }
 
@@ -427,11 +429,16 @@ uint8_t CPU6502::am_abs() {
  * of the x register is added to the address.
 */
 uint8_t CPU6502::am_abx() {
+
+	/* fetch address */
 	uint16_t lo = bus->read(pc++);
 	uint16_t hi = bus->read(pc++);
 
 	addr = (hi << 8) | lo;
 	addr += x;
+
+	/* fetch data */
+	fetched = bus->read(addr);
 
 	/* extra cycle required if a page is passed */
 	if((addr & 0xff00) != (hi << 8)) return 1;
@@ -445,11 +452,16 @@ uint8_t CPU6502::am_abx() {
  * of the y register is added to the address.
 */
 uint8_t CPU6502::am_aby() {	
+
+	/* fetch address */
 	uint16_t lo = bus->read(pc++);
 	uint16_t hi = bus->read(pc++);
 
 	addr = (hi << 8) | lo;
 	addr += y;
+
+	/* fetch data */
+	fetched = bus->read(addr);
 
 	/* extra cycle required if a page is passed */
 	if((addr & 0xff00) != (hi << 8)) return 1;
@@ -472,7 +484,7 @@ uint8_t CPU6502::am_imm() {
  * There is no operand. The A register is used.
 */
 uint8_t CPU6502::am_imp() {	
-	fetched = a;
+	addr = 0x00;
 	return 0;
 }
 
@@ -497,6 +509,7 @@ uint8_t CPU6502::am_ind() {
 	}
 
 	addr = (bus->read(ptr + 1) << 8) | bus->read(ptr);
+	fetched = bus->read(addr);
 	return 0;
 }
 
@@ -511,11 +524,17 @@ uint8_t CPU6502::am_ind() {
  * cycle is required.
 */
 uint8_t CPU6502::am_izx() {
+
+	/* get pointer */
 	uint16_t ptr = bus->read(pc++);
+
+	/* set address */
 	uint16_t lo = bus->read((uint16_t) (ptr + (uint16_t) x) & 0x00ff);
 	uint16_t hi = bus->read((uint16_t) (ptr + (uint16_t) x + 1) & 0x00ff);
-
 	addr = (hi << 8) | lo;
+
+	/* fetch data at address */
+	fetched = bus->read(addr);
 	return 0;
 }
 
@@ -530,11 +549,17 @@ uint8_t CPU6502::am_izx() {
  * cycle is required.
 */
 uint8_t CPU6502::am_izy() {	
+
+	/* get pointer */
 	uint16_t ptr = bus->read(pc++);
+
+	/* set address */
 	uint16_t lo = bus->read((uint16_t) (ptr + (uint16_t) y) & 0x00ff);
 	uint16_t hi = bus->read((uint16_t) (ptr + (uint16_t) y + 1) & 0x00ff);
-
 	addr = (hi << 8) | lo;
+
+	/* fetch data at address */
+	fetched = bus->read(addr);
 	return 0;
 }
 
@@ -547,6 +572,13 @@ uint8_t CPU6502::am_izy() {
  * +128 bytes of the program counter.
 */
 uint8_t CPU6502::am_rel() { 
+
+	/*
+	 * fetch address only, we don't have to fetch
+	 * data since this addressing mode is used
+	 * exclusively by branch instructions.
+	*/
+
 	addr = bus->read(pc++);
 	if(addr & 0x80) {
 		addr |= 0xff00;
@@ -567,8 +599,13 @@ uint8_t CPU6502::am_rel() {
 */
 
 uint8_t CPU6502::am_zpg() {	
+
+	/* get address */
 	addr = bus->read(pc++);
 	addr &= 0x00ff;
+
+	/* fetch data */
+	fetched = bus->read(addr);
 	return 0;
 }
 
@@ -584,8 +621,13 @@ uint8_t CPU6502::am_zpg() {
 */
 
 uint8_t CPU6502::am_zpx() {	
+
+	/* get address */
 	addr = bus->read(pc++) + x;
 	addr &= 0x00ff;
+
+	/* fetch data */
+	fetched = bus->read(addr);
 	return 0;
 }
 
@@ -598,11 +640,15 @@ uint8_t CPU6502::am_zpx() {
  * the zero page region of memory (the first 
  * 128 bytes of memory). For this addressing
  * mode, the y register is used as an offset.
-
 */
 uint8_t CPU6502::am_zpy() {
+
+	/* get address */
 	addr = bus->read(pc++) + y;
 	addr &= 0x00ff;
+
+	/* fetch data */
+	fetched = bus->read(addr);
 	return 0;
 }
 
@@ -613,7 +659,7 @@ uint8_t CPU6502::am_zpy() {
 
 /*
  * instruction: add w/ carry
- * function: a + m + c -> a, c
+ * function: a = a + memory + c
  * flags: n, z, c, v
 */
 uint8_t CPU6502::op_adc() {
@@ -622,183 +668,725 @@ uint8_t CPU6502::op_adc() {
 	set_flag(N, temp & 0x80);
 	set_flag(Z, (temp & 0x00ff) == 0);
 	set_flag(C, temp > 255);
-	set_flag(V, (~((uint16_t)a ^ (uint16_t)fetched) & ((uint16_t)a ^ (uint16_t)temp)) & 0x0080);
+	set_flag(V, (~((uint16_t)a ^ (uint16_t)fetched) & ((uint16_t)a ^ (uint16_t)temp)) & 0b10000000);
 	
 	a = temp & 0x00ff;
+	return 0;
 }
 
 /*
- * instruction: logical and
- * function: a AND m -> a
+ * instruction: bitwise and
+ * function: a = a & memory
  * flags: n, z
 */
 uint8_t CPU6502::op_and() {	
-	fetch();
 	a &= fetched;
+	set_flag(Z, a == 0x00);
+	set_flag(N, a & 0x80);
+	return 1;
 }
 
+
+/*
+ * instruction: arithmetic shift left
+ * function: value = value << 1
+ * flags: c, n, z
+*/
 uint8_t CPU6502::op_asl() {	
+	uint16_t temp = (uint16_t)fetched << 1;
+	
+	set_flag(C, fetched & 0b10000000 > 0);
+	set_flag(Z, temp == 0);
+	set_flag(N, temp & 0b10000000 > 0);
 
+	if(lookup[opcode].am == &CPU6502::am_imp) {
+		a = temp & 0x00ff;
+		return 0;
+	}
+
+	bus->write(addr, temp & 0x00ff);
+	return 0;
 }
+
+/*
+ * instruction: branch if carry clear
+ * function: pc = pc + 2 + memory (signed)
+ * flags: n/a
+*/
 uint8_t CPU6502::op_bcc() {	
+	if(get_flag(C) == 0) {
+		cycles++; /* +1 if the branch succeeds */
+		if((addr & 0xff00) != (pc & 0xff00)) cycles++; /* +1 if page boundary is crossed */
 
+		pc = addr;
+	}
+
+	return 0;
 }
+
+/*
+ * instruction: branch if carry set
+ * function: pc = pc + 2 + memory (signed)
+ * flags: n/a
+*/
 uint8_t CPU6502::op_bcs() {	
+	if(get_flag(C) == 1) {
+		cycles++; /* +1 if the branch succeeds */
+		if((addr & 0xff00) != (pc & 0xff0)) cycles++; /* +1 if the page boundary is crossed */
 
+		pc = addr;
+	}
+
+	return 0;
 }
-void CPU6502::op_beq() {	
 
+/*
+ * instruction: branch if equal (zero set)
+ * function: pc = pc + 2 + memory (signed)
+ * flags: n/a
+*/
+uint8_t CPU6502::op_beq() {	
+	if(get_flag(Z) == 0) {
+		cycles++; /* +1 if the branch succeeeds */
+		if((addr & 0xff00) != (pc & 0xff00)) cycles++; /* +1 if the page boundary is crossed */
+
+		pc = addr;
+	}
+
+	return 0;
 }
-void CPU6502::op_bit() {	
 
+/*
+ * instruction: bit test
+ * function: a & memory
+ * flags: z, v, n
+*/
+uint8_t CPU6502::op_bit() {	
+	set_flag(Z, fetched & a == 0);
+	set_flag(V, fetched & 0b01000000 > 0);
+	set_flag(N, fetched & 0b10000000 > 0);
+	return 0;
 }
-void CPU6502::op_bmi() {	
 
+/*
+ * instruction: branch if minus
+ * function: pc = pc + 2 + memory (signed)
+ * flags: n/a
+*/
+uint8_t CPU6502::op_bmi() {	
+	if(get_flag(N) == 0) {
+		cycles++;
+		if((addr & 0xff00) != (pc & 0xff00)) cycles++;
+
+		pc = addr;
+	}
+
+	return 0;
 }
-void CPU6502::op_bne() {	
 
+/*
+ * instruction: branch if not equal
+ * function: pc = pc + 2 + memory (signed)
+ * flags: n/a
+*/
+uint8_t CPU6502::op_bne() {	
+	if(get_flag(Z) == 0) {
+		cycles++;
+		if((addr & 0xff00) != (pc & 0xff00)) cycles++;
+
+		pc = addr;
+	}
+
+	return 0;
 }
-void CPU6502::op_bpl() {	
 
+/*
+ * instruction: branch if plus
+ * function: pc = pc + 2 + memory (signed)
+ * flags: n/a
+*/
+uint8_t CPU6502::op_bpl() {	
+	if(get_flag(N) == 0) {
+		cycles++;
+		if((addr & 0xff00) != (pc & 0xff00)) cycles++;
+
+		pc = addr;
+	}
+
+	return 0;
 }
-void CPU6502::op_brk() {	
 
+/*
+ * instruction: break
+ * function: psh pc, psh sr, pc = $FFFE
+ * flags: n/a
+*/
+uint8_t CPU6502::op_brk() {
+
+	/* push program counter */
+	pc++; /* byte after a brk instruction is skipped */
+	bus->write(0x0100 + sp--, (pc >> 8) & 0x00ff);
+	bus->write(0x0100 + sp--, pc & 0x00ff);
+
+	/* push status register */
+	set_flag(B, 1);
+	bus->write(0x0100 + sp--, sr);
+	set_flag(B, 0);
+
+	/* read program counter from 0xfffe */
+	uint8_t hi = bus->read(0xffff);
+	uint8_t lo = bus->read(0xfffe);
+	pc = (hi << 8) | lo;
+
+	return 0;
 }
-void CPU6502::op_bvc() {	
 
+/*
+ * instruction: branch if overflow clear
+ * function: pc = pc + 2 + memory (signed)
+ * flags: n/a
+*/
+uint8_t CPU6502::op_bvc() {	
+	if(get_flag(V) == 0) {
+		cycles++;
+		if((addr & 0xff00) != (pc & 0xff00)) cycles++;
+
+		pc = addr;
+	}
+
+	return 0;
 }
-void CPU6502::op_bvs() {	
 
+/*
+ * instruction: branch if overflow set
+ * function: pc = pc + 2 + memory (signed)
+ * flags: n/a
+*/
+uint8_t CPU6502::op_bvs() {	
+	if(get_flag(V) == 1) {
+		cycles++;
+		if((addr & 0xff00) != (pc & 0xff00)) cycles++;
+
+		pc = addr;
+	}
+
+	return 0;
 }
-void CPU6502::op_clc() {	
 
+/*
+ * instruction: clear carry
+ * function: c = 0
+ * flags: c
+*/
+uint8_t CPU6502::op_clc() {	
+	set_flag(C, 0);
+	return 0;
 }
-void CPU6502::op_cld() {	
 
+/*
+ * instruction: clear decimal
+ * function: d = 0
+ * flags: d
+*/
+uint8_t CPU6502::op_cld() {	
+	set_flag(D, 0);
+	return 0;
 }
-void CPU6502::op_cli() {	
 
+/*
+ * instruction: clear interrupt disable
+ * function: i = 0
+ * flags: i
+*/
+uint8_t CPU6502::op_cli() {	
+	set_flag(I, 0);
+	return 0;
 }
-void CPU6502::op_clv() {	
 
+/*
+ * instruction: clear overflow
+ * function: v = 0
+ * flags: v
+*/
+uint8_t CPU6502::op_clv() {	
+	set_flag(V, 0);
+	return 0;
 }
-void CPU6502::op_cmp() {	
 
+/*
+ * instruction: compare
+ * function: a - memory
+ * flags: c, z, n
+*/
+uint8_t CPU6502::op_cmp() {	
+	set_flag(C, a >= fetched);
+	set_flag(Z, a == fetched);
+	set_flag(N, fetched & 0b10000000 > 0);
+	return 1;
 }
-void CPU6502::op_cpx() {	
 
+/*
+ * instruction: compare x
+ * function: x - memory
+ * flags: c, z, n
+*/
+uint8_t CPU6502::op_cpx() {	
+	set_flag(C, x >= fetched);
+	set_flag(Z, x == fetched);
+	set_flag(N, fetched & 0b10000000 > 0);
+	return 0;
 }
-void CPU6502::op_cpy() {	
 
+/*
+ * instruction: compare y
+ * function: y - memory
+ * flags: c, z, n
+*/
+uint8_t CPU6502::op_cpy() {	
+	set_flag(C, x >= fetched);
+	set_flag(Z, x == fetched);
+	set_flag(N, fetched & 0b10000000 > 0);
+	return 0;
 }
-void CPU6502::op_dec() {	
 
+/*
+ * instruction: decrement
+ * function: memory = memory - 1
+ * flags: z, n
+*/
+uint8_t CPU6502::op_dec() {	
+	bus->write(addr, --fetched);
+	set_flag(Z, fetched == 0);
+	set_flag(N, fetched && 0b10000000 > 0);
+	return 0;
 }
-void CPU6502::op_dex() {	
 
+
+/*
+ * instruction: decrement x
+ * function: x = x - 1
+ * flags: z, n
+*/
+uint8_t CPU6502::op_dex() {	
+	x--;
+	set_flag(Z, x == 0);
+	set_flag(N, fetched && 0b10000000 > 0);
+	return 0;
 }
-void CPU6502::op_dey() {	
-
+ 
+/*
+ * instruction: decrement y
+ * function: y = y - 1
+ * flags: z, n
+*/
+uint8_t CPU6502::op_dey() {	
+	y--;
+	set_flag(Z, x == 0);
+	set_flag(N, fetched && 0b10000000 > 0);
+	return 0;
 }
-void CPU6502::op_eor() {	
 
+/*
+ * instruction: exclusive or
+ * function: a = a ^ memory
+ * flags: z, n
+*/
+uint8_t CPU6502::op_eor() {	
+	a ^= fetched; /* exclusive or operator */
+	set_flag(Z, a == 0);
+	set_flag(N, a & 0b10000000 > 0);
+	return 1;
 }
-void CPU6502::op_inc() {	
 
+/*
+ * instruction: increment
+ * function: memory = memory + 1
+ * flags: z, n
+*/
+uint8_t CPU6502::op_inc() {	
+	bus->write(addr, ++fetched);
+	set_flag(Z, fetched == 0);
+	set_flag(N, fetched & 0b10000000 > 0);
+	return 0;
 }
-void CPU6502::op_inx() {	
 
+/*
+ * instruction: increment x
+ * function: x = x + 1
+ * flags: z, n
+*/
+uint8_t CPU6502::op_inx() {	
+	x++;
+	set_flag(Z, x == 0);
+	set_flag(N, x & 0b10000000 > 0);
+	return 0;
 }
-void CPU6502::op_iny() {	
 
+/*
+ * instruction: increment y
+ * function: y = y + 1
+ * flags: z, n
+*/
+uint8_t CPU6502::op_iny() {	
+	y++;
+	set_flag(Z, y == 0);
+	set_flag(N, y & 0b10000000 > 0);
+	return 0;
 }
-void CPU6502::op_jmp() {	
 
+/*
+ * instruction: jump
+ * function: pc = memory
+ * flags: n/a
+*/
+uint8_t CPU6502::op_jmp() {	
+	pc = addr;
+	return 0;
 }
-void CPU6502::op_jsr() {	
 
+/*
+ * instruction: jump to subroutine
+ * function: psh pc, pc = memory
+ * flags: n/a
+*/
+uint8_t CPU6502::op_jsr() {
+	bus->write(0x0100 + sp--, (pc >> 8) & 0x00ff);
+	bus->write(0x0100 + sp--, pc & 0x00ff);
+	pc = addr;
+	return 0;
 }
-void CPU6502::op_lda() {	
 
+/*
+ * instruction: load accumulator
+ * function: a = memory
+ * flags: z, n
+*/
+uint8_t CPU6502::op_lda() {	
+	a = fetched;
+	set_flag(Z, a == 0);
+	set_flag(N, a & 0b10000000 > 0);
+	return 0;
 }
-void CPU6502::op_ldx() {	
 
+/*
+ * instruction: load x register
+ * function: x = memory
+ * flags: z, n
+*/
+uint8_t CPU6502::op_ldx() {	
+	x = fetched;
+	set_flag(Z, x == 0);
+	set_flag(N, x & 0b10000000 > 0);
+	return 0;
 }
-void CPU6502::op_ldy() {	
 
+/*
+ * instruction: load y register
+ * function: y = memory
+ * flags: z, n
+*/
+uint8_t CPU6502::op_ldy() {	
+	y = fetched;
+	set_flag(Z, y == 0);
+	set_flag(N, y & 0b10000000 > 0);
+	return 0;
 }
-void CPU6502::op_lsr() {	
 
+/*
+ * instruction: logical shift right
+ * function: value = value >> 1
+ * flags: c, z, n
+*/
+uint8_t CPU6502::op_lsr() {
+	uint16_t temp = fetched >> 1;
+
+	set_flag(C, fetched & 0x01 > 0);
+	set_flag(Z, temp == 0);
+	set_flag(N, 1);
+
+	if(lookup[opcode].am == &CPU6502::am_imp) {
+		a = temp & 0x00ff;
+		return 0;
+	}
+
+	bus->write(addr, temp & 0x00ff);
+	return 0;
 }
-void CPU6502::op_nop() {	
 
+/*
+ * instruction: no operation
+ * function: n/a
+ * flags: n/a
+*/
+uint8_t CPU6502::op_nop() {	
+	return 0;
 }
-void CPU6502::op_ora() {	
 
+/*
+ * instruction: bitwise or
+ * function: a = a | memory
+ * flags: z, n
+*/
+uint8_t CPU6502::op_ora() {	
+	a |= fetched;
+	set_flag(Z, a == 0);
+	set_flag(N, a & 0b10000000 > 0);
+	return 0;
 }
-void CPU6502::op_pha() {	
 
+/*
+ * instruction: push a
+ * function: psh a
+ * flags: n/a
+*/
+uint8_t CPU6502::op_pha() {	
+	bus->write(0x0100 + sp--, a);
+	return 0;
 }
-void CPU6502::op_php() {	
 
+/*
+ * instruction: push status register
+ * function: psh sr
+ * flags: n/a
+*/
+uint8_t  CPU6502::op_php() {	
+	bus->write(0x0100 + sp--, sr);
+	return 0;
 }
-void CPU6502::op_pla() {	
 
+/*
+ * instruction: pull a
+ * function: pop a
+ * flags: n/a
+*/
+uint8_t CPU6502::op_pla() {	
+	a = bus->read(0x0100 + ++sp);
+	return 0;
 }
-void CPU6502::op_plp() {	
 
+/*
+ * instruction: pull status register
+ * function: pop sr
+ * flags: n/a
+*/
+uint8_t CPU6502::op_plp() {	
+	sr = bus->read(0x0100 + ++sp);
+	return 0;
 }
-void CPU6502::op_rol() {	
 
+/*
+ * instruction: rotate left
+ * function: value = value << 1 through c
+ * flags: c, z, n
+*/
+uint8_t CPU6502::op_rol() {	
+	uint16_t temp = (fetched << 1) & get_flag(C);
+
+	set_flag(C, fetched & 0b10000000 > 0);
+	set_flag(Z, temp == 0);
+	set_flag(N, temp & 0b10000000 > 0);
+
+	if(lookup[opcode].am == &CPU6502::am_imp) {
+		a = temp & 0x00ff;
+		return 0;
+	}
+
+	bus->write(addr, temp & 0x00ff);
+	return 0;
 }
-void CPU6502::op_ror() {	
 
+/*
+ * instruction: rotate right
+ * function: value = value >> 1 through c
+ * flags: c, z, n
+*/
+uint8_t CPU6502::op_ror() {	
+	uint16_t temp = fetched >> 1;
+	if(get_flag(C)) temp &= 0b10000000;
+
+	set_flag(C, fetched & 0b10000000 > 0);
+	set_flag(Z, temp == 0);
+	set_flag(N, temp & 0b10000000 > 0);
+
+	if(lookup[opcode].am == &CPU6502::am_imp) {
+		a = temp & 0x00ff;
+		return 0;
+	}
+
+	bus->write(addr, temp & 0x00ff);
+	return 0;
 }
-void CPU6502::op_rti() {	
 
+/*
+ * instruction: return from interrupt
+ * function: pop sr, pop pc
+ * flags: n, v, d, i, z, c
+*/
+uint8_t CPU6502::op_rti() {	
+	sr |= bus->read(0x0100 + ++sp) & 0b11110011;
+	
+	uint8_t lo = bus->read(0x0100 + ++sp);
+	uint8_t hi = bus->read(0x0100 + ++sp);
+	pc = (hi << 8) | lo;
+	return 0;
 }
-void CPU6502::op_rts() {	
 
+/*
+ * instruction: return from subroutine
+ * function: pop pc
+ * flags: n/a
+*/
+uint8_t CPU6502::op_rts() {	
+	uint8_t lo = bus->read(0x0100 + ++sp);
+	uint8_t hi = bus->read(0x0100 + ++sp);
+	pc = (hi << 8) | lo;
+	return 0;
 }
-void CPU6502::op_sbc() {	
 
+/*
+ * instruction: substract with carry
+ * function: a = a - ~memory + c
+ * flags: c, z, v, n
+*/
+uint8_t CPU6502::op_sbc() {	
+	uint16_t value = ((uint16_t) fetched) ^ 0x00ff; /* invert bottom half */
+
+	/* essentially addition from here */
+	uint16_t temp = (uint16_t) a + value + (uint16_t)get_flag(C);
+
+	set_flag(C, temp & 0xff00);
+	set_flag(Z, temp & 0x00ff == 0);
+	set_flag(V, (temp ^ (uint16_t)a) & (temp ^ value) & 0b10000000);
+	set_flag(N, temp & 0b10000000);
+	return 1;
 }
-void CPU6502::op_sec() {	
 
+/*
+ * instruction: set carry
+ * function: c = 1
+ * flags: c
+*/
+uint8_t CPU6502::op_sec() {	
+	set_flag(C, 1);
+	return 0;
 }
-void CPU6502::op_sed() {	
 
+/*
+ * instruction: set decimal mode
+ * function: d = 1
+ * flags: d
+*/
+uint8_t CPU6502::op_sed() {	
+	set_flag(D, 1);
+	return 0;
 }
-void CPU6502::op_sei() {	
 
+/*
+ * instruction: set interrupt disable
+ * function: i = 1
+ * flags: i
+*/
+uint8_t CPU6502::op_sei() {	
+	set_flag(I, 1);
+	return 0;
 }
-void CPU6502::op_sta() {	
 
+/*
+ * instruction: store a
+ * function: memory = a
+ * flags: n/a
+*/
+uint8_t CPU6502::op_sta() {	
+	bus->write(addr, a);
+	return 0;
 }
-void CPU6502::op_stx() {	
 
+/*
+ * instruction: store x
+ * function: memory = x
+ * flags: n/a
+*/
+uint8_t CPU6502::op_stx() {	
+	bus->write(addr, x);
+	return 0;
 }
-void CPU6502::op_sty() {	
 
+/*
+ * instruction: store y
+ * function: memory = y
+ * flags: n/a
+*/
+uint8_t CPU6502::op_sty() {	
+	bus->write(addr, y);
+	return 0;
 }
-void CPU6502::op_tax() {	
 
+/*
+ * instruction: transfer a to x
+ * function: n/a
+ * flags: n/a
+*/
+uint8_t CPU6502::op_tax() {	
+	x = a;
+	return 0;
 }
-void CPU6502::op_tay() {	
 
+/*
+ * instruction: transfer a to y
+ * function: n/a
+ * flags: n/a
+*/
+uint8_t CPU6502::op_tay() {	
+	y = a;
+	return 0;
 }
-void CPU6502::op_tsx() {	
 
+/*
+ * instruction: transfer stack pointer to x
+ * function: n/a
+ * flags: n/a
+*/
+uint8_t CPU6502::op_tsx() {	
+	x = sp;
+	return 0;
 }
-void CPU6502::op_txa() {	
 
+/*
+ * instruction: transfer x to a
+ * function: n/a
+ * flags: n/a
+*/
+uint8_t CPU6502::op_txa() {	
+	a = x;
+	return 0;
 }
-void CPU6502::op_txs() {	
 
+/*
+ * instruction: transfer x to stack pointer
+ * function: n/a
+ * flags: n/a
+*/
+uint8_t CPU6502::op_txs() {	
+	sp = x;
+	return 0;
 }
-void CPU6502::op_tya() {	
 
+/*
+ * instruction: transfer y to a
+ * function: n/a
+ * flags: n/a
+*/
+uint8_t CPU6502::op_tya() {	
+	a = y;
+	return 0;
 }
-void CPU6502::op_xxx() {	
 
+/*
+ * instruction: placeholder for all unimplemented opcodes
+ * function: n/a
+ * flags: n/a
+*/
+
+uint8_t CPU6502::op_xxx() {
+	return 0;
 }

@@ -10,6 +10,8 @@ Bus::~Bus() {
 
 uint8_t Bus::read(uint16_t addr) {
 
+	addr &= 0b0001111111111111; /* mask since only 13 of the 16 bit's are connected in the 6507 */
+
 	/* TIA handler (0x0000-0x002C: TIA Write, 0x0030-0x003D: TIA Read) */
 	if(addr >= 0x0000 && addr <= 0x003D) {
 		return tia.read(addr);
