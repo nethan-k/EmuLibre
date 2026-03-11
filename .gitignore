@@ -3,3 +3,4 @@ components/*.o
 main
 *.out
 *.bin
+*.txt
