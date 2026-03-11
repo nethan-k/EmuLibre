@@ -2,3 +2,5 @@
 components/*.o
 main
 *.txt
+*.out
+*.bin
