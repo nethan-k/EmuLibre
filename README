@@ -5,16 +5,9 @@ As of right now, I am working as a solo dev on this project, and so I decided to
 Here is a list of systems I want to have supported as a starting point (I will add to this list as this repository matures):-
 
 	- Atari 2600 (In Progress)
-	- NES (Not started)
-	- GB/GBC/GBA (Not Started)
-	- NDS (Not started)
+	- Atari 7800 (Not started)
+	- Atari XEGS (Not started)
+	- Atari 5200 (Not started, not as important)
 
-And here are a list of platforms I want supported:-
 
-	- Linux
-	- Windows
-	- MacOS
-	- Andriod
-	- iOS
-
-I hope all of this isn't too ambitious!!
+I plan to use Qt for the graphics portion and compile for all systems. I hope all of this isn't too ambitious!!
