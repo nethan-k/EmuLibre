@@ -1,7 +1,7 @@
 # Compiler
 CXX = g++
 
-# CXXFLAGS = -Wall -g
+CXXFLAGS = -Wall -g
 
 # Target executable
 TARGET = main
@@ -10,7 +10,7 @@ TARGET = main
 TARGET_DEL = main
 
 # Source files
-SRCS = main.cpp components/6502.cpp components/bus.cpp components/6532.cpp components/tia.cpp
+SRCS = src/core/atari2600.cpp src/core/components/6502.cpp src/core/components/6532.cpp src/core/components/tia.cpp src/core/components/atari2600_bus.cpp
 
 # Object files
 OBJS = $(SRCS:.cpp=.o)

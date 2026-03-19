@@ -3,10 +3,11 @@
 #include <cstdint>
 #include <vector>
 #include <string>
+#include <bitset>
 
-#include "bus.h"
+#include "atari2600_bus.h"
 
-class Bus;
+class Atari2600Bus;
 
 class CPU6502 {
 	public:
@@ -14,10 +15,10 @@ class CPU6502 {
 		CPU6502();
 		~CPU6502();
 
-		Bus* bus = nullptr;
+		Atari2600Bus* bus = nullptr;
 
 		/* internal registers */
-		uint8_t a = 0x00;	/* accumulator */
+		uint8_t a = 0x70;	/* accumulator */
 		uint8_t x = 0x00;	/* x index register */
 		uint8_t y = 0x00;	/* y index register */
 		uint8_t sp = 0x00;	/* stack pointer */
@@ -40,14 +41,14 @@ class CPU6502 {
 			N = (1 << 7),	/* negative */
 		};
 
-		struct INSTRUCTION {
+		struct instr {
 			std::string name;
 			uint8_t (CPU6502::*op)(void) = nullptr;
 			uint8_t (CPU6502::*am)(void) = nullptr;
 			uint8_t cycles = 0;
 		};
 
-		std::vector<INSTRUCTION>  lookup;	/* lookup table for opcodes, operates, addressing modes, and cycles */
+		std::vector<instr>  lookup;	/* lookup table for opcodes, operates, addressing modes, and cycles */
 
 		/* cpu signals */
 		void reset();	/* reset signal */

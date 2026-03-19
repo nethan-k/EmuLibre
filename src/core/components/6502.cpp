@@ -1,5 +1,6 @@
 #include "6502.h"
-#include "bus.h"
+#include "atari2600_bus.h"
+#include <iostream>
 
 CPU6502::CPU6502() {
 
@@ -293,15 +294,17 @@ CPU6502::~CPU6502() {
 void CPU6502::reset() {
 
 	/* set program counter */
-	uint8_t hi = bus->read(0xfffc);
-	uint8_t lo = bus->read(0xfffd);
+	uint8_t lo = bus->read(0xfffc);
+	uint8_t hi = bus->read(0xfffd);
 	pc = (hi << 8) | lo;
 
 	a = 0x00;
 	x = 0x00;
 	y = 0x00;
 	sp = 0x00;
-	sr = 0x00 | U; /* U is always set */
+	sr = U; /* U is always set */
+
+	std::cout << std::bitset<8>(sr) << std::endl;
 
 	fetched = 0x00;
 	addr = 0x00;
@@ -356,11 +359,15 @@ void CPU6502::nmi() {
 /* clock signal */
 void CPU6502::clock() {
 	if(cycles == 0) {
-		set_flag(U, true); /* always set */
+		set_flag(U, 1); /* always set */
+
+		std::cout << "cpu: read at " << std::hex << (int)pc << std::endl;
 
 		opcode = bus->read(pc++);
 		cycles = lookup[opcode].cycles;
-		
+
+		std::cout << "cpu: opc-" << std::hex << (int)opcode << ", inst-" << lookup[opcode].name << ", cycles-" << (int)cycles << std::endl;
+
 		uint8_t am_cycle = (this->*lookup[opcode].am)();
 		fetched = fetch();
 		uint8_t op_cycle = (this->*lookup[opcode].op)();
@@ -375,6 +382,7 @@ void CPU6502::clock() {
 /* utility functions */
 
 uint8_t CPU6502::get_flag(CPU6502::FLAGS f) {
+	std::cout << f << std::endl;
 	return ((f & 0) > 0) ? 1 : 0;
 }
 
@@ -411,14 +419,13 @@ uint8_t CPU6502::fetch() {
  * The operand is a 16 bit address.
 */
 uint8_t CPU6502::am_abs() {
+	std::cout << "cpu: reached abs" << std::endl;
 
 	/* fetch address */
 	uint16_t lo = bus->read(pc++);
 	uint16_t hi = bus->read(pc++);
 	addr = (hi << 8) | lo;
 
-	/* fetch data */
-	fetched = bus->read(addr);
 	return 0;
 }
 
@@ -429,6 +436,7 @@ uint8_t CPU6502::am_abs() {
  * of the x register is added to the address.
 */
 uint8_t CPU6502::am_abx() {
+	std::cout << "cpu: reached abx" << std::endl;
 
 	/* fetch address */
 	uint16_t lo = bus->read(pc++);
@@ -436,9 +444,6 @@ uint8_t CPU6502::am_abx() {
 
 	addr = (hi << 8) | lo;
 	addr += x;
-
-	/* fetch data */
-	fetched = bus->read(addr);
 
 	/* extra cycle required if a page is passed */
 	if((addr & 0xff00) != (hi << 8)) return 1;
@@ -452,6 +457,7 @@ uint8_t CPU6502::am_abx() {
  * of the y register is added to the address.
 */
 uint8_t CPU6502::am_aby() {	
+	std::cout << "cpu: reached aby" << std::endl;
 
 	/* fetch address */
 	uint16_t lo = bus->read(pc++);
@@ -459,9 +465,6 @@ uint8_t CPU6502::am_aby() {
 
 	addr = (hi << 8) | lo;
 	addr += y;
-
-	/* fetch data */
-	fetched = bus->read(addr);
 
 	/* extra cycle required if a page is passed */
 	if((addr & 0xff00) != (hi << 8)) return 1;
@@ -474,7 +477,9 @@ uint8_t CPU6502::am_aby() {
  * The operand is define at pc + 1;
 */
 uint8_t CPU6502::am_imm() {	
-	addr = ++pc;
+	std::cout << "cpu: reached imm" << std::endl;
+
+	addr = pc++;
 	return 0;
 }
 
@@ -484,6 +489,8 @@ uint8_t CPU6502::am_imm() {
  * There is no operand. The A register is used.
 */
 uint8_t CPU6502::am_imp() {	
+	std::cout << "cpu: reached imp" << std::endl;
+
 	addr = 0x00;
 	return 0;
 }
@@ -498,6 +505,8 @@ uint8_t CPU6502::am_imp() {
  * address.
 */
 uint8_t CPU6502::am_ind() {	
+	std::cout << "cpu: reached ind" << std::endl;
+
 	uint16_t lo = bus->read(pc++);
 	uint16_t hi = bus->read(pc++);
 	uint16_t ptr = (lo << 8) | hi;
@@ -509,7 +518,6 @@ uint8_t CPU6502::am_ind() {
 	}
 
 	addr = (bus->read(ptr + 1) << 8) | bus->read(ptr);
-	fetched = bus->read(addr);
 	return 0;
 }
 
@@ -524,6 +532,7 @@ uint8_t CPU6502::am_ind() {
  * cycle is required.
 */
 uint8_t CPU6502::am_izx() {
+	std::cout << "cpu: reached izx" << std::endl;
 
 	/* get pointer */
 	uint16_t ptr = bus->read(pc++);
@@ -533,8 +542,6 @@ uint8_t CPU6502::am_izx() {
 	uint16_t hi = bus->read((uint16_t) (ptr + (uint16_t) x + 1) & 0x00ff);
 	addr = (hi << 8) | lo;
 
-	/* fetch data at address */
-	fetched = bus->read(addr);
 	return 0;
 }
 
@@ -549,6 +556,7 @@ uint8_t CPU6502::am_izx() {
  * cycle is required.
 */
 uint8_t CPU6502::am_izy() {	
+	std::cout << "cpu: reached izy" << std::endl;
 
 	/* get pointer */
 	uint16_t ptr = bus->read(pc++);
@@ -558,8 +566,6 @@ uint8_t CPU6502::am_izy() {
 	uint16_t hi = bus->read((uint16_t) (ptr + (uint16_t) y + 1) & 0x00ff);
 	addr = (hi << 8) | lo;
 
-	/* fetch data at address */
-	fetched = bus->read(addr);
 	return 0;
 }
 
@@ -572,12 +578,7 @@ uint8_t CPU6502::am_izy() {
  * +128 bytes of the program counter.
 */
 uint8_t CPU6502::am_rel() { 
-
-	/*
-	 * fetch address only, we don't have to fetch
-	 * data since this addressing mode is used
-	 * exclusively by branch instructions.
-	*/
+	std::cout << "cpu: reached rel" << std::endl;
 
 	addr = bus->read(pc++);
 	if(addr & 0x80) {
@@ -599,13 +600,12 @@ uint8_t CPU6502::am_rel() {
 */
 
 uint8_t CPU6502::am_zpg() {	
+	std::cout << "cpu: reached zpg" << std::endl;
 
 	/* get address */
 	addr = bus->read(pc++);
 	addr &= 0x00ff;
 
-	/* fetch data */
-	fetched = bus->read(addr);
 	return 0;
 }
 
@@ -617,17 +617,16 @@ uint8_t CPU6502::am_zpg() {
  * memory with only 1 byte if it is stored in
  * the zero page region of memory (the first 
  * 128 bytes of memory). For this addressing
- * mode, the y register is used as an offset.
+ * mode, the x register is used as an offset.
 */
 
 uint8_t CPU6502::am_zpx() {	
+	std::cout << "cpu: reached zpx" << std::endl;
 
 	/* get address */
 	addr = bus->read(pc++) + x;
 	addr &= 0x00ff;
 
-	/* fetch data */
-	fetched = bus->read(addr);
 	return 0;
 }
 
@@ -642,13 +641,12 @@ uint8_t CPU6502::am_zpx() {
  * mode, the y register is used as an offset.
 */
 uint8_t CPU6502::am_zpy() {
+	std::cout << "cpu: reached zpy" << std::endl;
 
 	/* get address */
 	addr = bus->read(pc++) + y;
 	addr &= 0x00ff;
 
-	/* fetch data */
-	fetched = bus->read(addr);
 	return 0;
 }
 
@@ -695,9 +693,9 @@ uint8_t CPU6502::op_and() {
 uint8_t CPU6502::op_asl() {	
 	uint16_t temp = (uint16_t)fetched << 1;
 	
-	set_flag(C, fetched & 0b10000000 > 0);
+	set_flag(C, fetched & (0b10000000 > 0));
 	set_flag(Z, temp == 0);
-	set_flag(N, temp & 0b10000000 > 0);
+	set_flag(N, temp & (0b10000000 > 0));
 
 	if(lookup[opcode].am == &CPU6502::am_imp) {
 		a = temp & 0x00ff;
@@ -762,9 +760,9 @@ uint8_t CPU6502::op_beq() {
  * flags: z, v, n
 */
 uint8_t CPU6502::op_bit() {	
-	set_flag(Z, fetched & a == 0);
-	set_flag(V, fetched & 0b01000000 > 0);
-	set_flag(N, fetched & 0b10000000 > 0);
+	set_flag(Z, fetched & (a == 0));
+	set_flag(V, fetched & (0b01000000 > 0));
+	set_flag(N, fetched & (0b10000000 > 0));
 	return 0;
 }
 
@@ -921,7 +919,7 @@ uint8_t CPU6502::op_clv() {
 uint8_t CPU6502::op_cmp() {	
 	set_flag(C, a >= fetched);
 	set_flag(Z, a == fetched);
-	set_flag(N, fetched & 0b10000000 > 0);
+	set_flag(N, (fetched & 0b10000000) > 0);
 	return 1;
 }
 
@@ -933,7 +931,7 @@ uint8_t CPU6502::op_cmp() {
 uint8_t CPU6502::op_cpx() {	
 	set_flag(C, x >= fetched);
 	set_flag(Z, x == fetched);
-	set_flag(N, fetched & 0b10000000 > 0);
+	set_flag(N, fetched & (0b10000000 > 0));
 	return 0;
 }
 
@@ -945,7 +943,7 @@ uint8_t CPU6502::op_cpx() {
 uint8_t CPU6502::op_cpy() {	
 	set_flag(C, x >= fetched);
 	set_flag(Z, x == fetched);
-	set_flag(N, fetched & 0b10000000 > 0);
+	set_flag(N, fetched & (0b10000000 > 0));
 	return 0;
 }
 
@@ -994,7 +992,7 @@ uint8_t CPU6502::op_dey() {
 uint8_t CPU6502::op_eor() {	
 	a ^= fetched; /* exclusive or operator */
 	set_flag(Z, a == 0);
-	set_flag(N, a & 0b10000000 > 0);
+	set_flag(N, a & (0b10000000 > 0));
 	return 1;
 }
 
@@ -1006,7 +1004,7 @@ uint8_t CPU6502::op_eor() {
 uint8_t CPU6502::op_inc() {	
 	bus->write(addr, ++fetched);
 	set_flag(Z, fetched == 0);
-	set_flag(N, fetched & 0b10000000 > 0);
+	set_flag(N, fetched & (0b10000000 > 0));
 	return 0;
 }
 
@@ -1018,7 +1016,7 @@ uint8_t CPU6502::op_inc() {
 uint8_t CPU6502::op_inx() {	
 	x++;
 	set_flag(Z, x == 0);
-	set_flag(N, x & 0b10000000 > 0);
+	set_flag(N, x & (0b10000000 > 0));
 	return 0;
 }
 
@@ -1030,7 +1028,7 @@ uint8_t CPU6502::op_inx() {
 uint8_t CPU6502::op_iny() {	
 	y++;
 	set_flag(Z, y == 0);
-	set_flag(N, y & 0b10000000 > 0);
+	set_flag(N, y & (0b10000000 > 0));
 	return 0;
 }
 
@@ -1064,7 +1062,7 @@ uint8_t CPU6502::op_jsr() {
 uint8_t CPU6502::op_lda() {	
 	a = fetched;
 	set_flag(Z, a == 0);
-	set_flag(N, a & 0b10000000 > 0);
+	set_flag(N, (a & 0b10000000) > 0);
 	return 0;
 }
 
@@ -1076,7 +1074,7 @@ uint8_t CPU6502::op_lda() {
 uint8_t CPU6502::op_ldx() {	
 	x = fetched;
 	set_flag(Z, x == 0);
-	set_flag(N, x & 0b10000000 > 0);
+	set_flag(N, x & (0b10000000 > 0));
 	return 0;
 }
 
@@ -1088,7 +1086,7 @@ uint8_t CPU6502::op_ldx() {
 uint8_t CPU6502::op_ldy() {	
 	y = fetched;
 	set_flag(Z, y == 0);
-	set_flag(N, y & 0b10000000 > 0);
+	set_flag(N, y & (0b10000000 > 0));
 	return 0;
 }
 
@@ -1100,7 +1098,7 @@ uint8_t CPU6502::op_ldy() {
 uint8_t CPU6502::op_lsr() {
 	uint16_t temp = fetched >> 1;
 
-	set_flag(C, fetched & 0x01 > 0);
+	set_flag(C, (fetched & 0x01) > 0);
 	set_flag(Z, temp == 0);
 	set_flag(N, 1);
 
@@ -1130,7 +1128,7 @@ uint8_t CPU6502::op_nop() {
 uint8_t CPU6502::op_ora() {	
 	a |= fetched;
 	set_flag(Z, a == 0);
-	set_flag(N, a & 0b10000000 > 0);
+	set_flag(N, a & (0b10000000 > 0));
 	return 0;
 }
 
@@ -1182,9 +1180,9 @@ uint8_t CPU6502::op_plp() {
 uint8_t CPU6502::op_rol() {	
 	uint16_t temp = (fetched << 1) & get_flag(C);
 
-	set_flag(C, fetched & 0b10000000 > 0);
+	set_flag(C, fetched & (0b10000000 > 0));
 	set_flag(Z, temp == 0);
-	set_flag(N, temp & 0b10000000 > 0);
+	set_flag(N, temp & (0b10000000 > 0));
 
 	if(lookup[opcode].am == &CPU6502::am_imp) {
 		a = temp & 0x00ff;
@@ -1204,9 +1202,9 @@ uint8_t CPU6502::op_ror() {
 	uint16_t temp = fetched >> 1;
 	if(get_flag(C)) temp &= 0b10000000;
 
-	set_flag(C, fetched & 0b10000000 > 0);
+	set_flag(C, fetched & (0b10000000 > 0));
 	set_flag(Z, temp == 0);
-	set_flag(N, temp & 0b10000000 > 0);
+	set_flag(N, (temp & 0b10000000) > 0);
 
 	if(lookup[opcode].am == &CPU6502::am_imp) {
 		a = temp & 0x00ff;
@@ -1255,7 +1253,7 @@ uint8_t CPU6502::op_sbc() {
 	uint16_t temp = (uint16_t) a + value + (uint16_t)get_flag(C);
 
 	set_flag(C, temp & 0xff00);
-	set_flag(Z, temp & 0x00ff == 0);
+	set_flag(Z, (temp & 0x00ff) == 0);
 	set_flag(V, (temp ^ (uint16_t)a) & (temp ^ value) & 0b10000000);
 	set_flag(N, temp & 0b10000000);
 	return 1;
