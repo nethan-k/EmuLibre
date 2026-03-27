@@ -1,5 +1,4 @@
 #include "tia.h"
-#include <iostream>
 
 TIA::TIA() {
 
@@ -9,11 +8,16 @@ TIA::~TIA() {
 
 }
 
-uint8_t TIA::read(uint8_t addr) {
-	std::cout << "reached tia read()" << std::endl;
-	return 0;
+void clock() {
+
 }
 
-void TIA::write(uint8_t addr, uint8_t val) {
-	std::cout << "reached tia write()" << std::endl;
+uint8_t TIA::read(uint16_t addr) {
+	addr &= 0x00ff;
+	return mem[addr];
+}
+
+void TIA::write(uint16_t addr, uint8_t val) {
+	addr &= 0x00ff;
+	mem[addr] = val;
 }

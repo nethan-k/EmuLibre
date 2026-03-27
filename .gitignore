@@ -4,3 +4,5 @@ main
 *.out
 *.bin
 *.txt
+*.exe
+*.swp

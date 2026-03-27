@@ -23,7 +23,7 @@ int main() {
 			break;
 
 		case 's': {
-			std::cout << std::bitset<8>cpu.sr << std::endl;
+			std::cout << (std::bitset<8>)cpu.sr << std::endl;
 			break;
 		}
 
