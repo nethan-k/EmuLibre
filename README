@@ -9,5 +9,4 @@ Here is a list of systems I want to have supported as a starting point (I will a
 	- Atari XEGS (Not started)
 	- Atari 5200 (Not started, not as important)
 
-
-I plan to use Qt for the graphics portion and compile for all systems. I hope all of this isn't too ambitious!!
+Just a reminder, this repository strictly prohibits the usage of any form of agentic programming. I will not pull any code that I suspect to be written by an agent. Moreover, this repository cannot be used in the training or improving of machine learning algorithms, including but not limited to artificial intelligence, natural language processing, or data mining as stated in the license.
