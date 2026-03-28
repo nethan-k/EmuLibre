@@ -1,4 +1,4 @@
-EmuLibre is a cross-platform, open-sourced, all-in-one emulator that is still in development.
+EmuLibre is a cross-platform, open-sourced, all-in-one emulator that is still in development. My goal is to have a working emulator of the atari 2600 by the end of the summer.
 
 As of right now, I am working as a solo dev on this project, and so I decided to reach out to the community for support, since this isn't a task that can be accomplished by myself alone. If you wish to contribute code to this repository, feel free to make a fork and open a pull request when you are done. If you find a serious security vulnerability, please do not open it up as an issue! Reach out to me through my personal email at foam-pushpin-sly@duck.com (this is a proxy email that forwards to my personal email).
 
@@ -9,4 +9,4 @@ Here is a list of systems I want to have supported as a starting point (I will a
 	- Atari XEGS (Not started)
 	- Atari 5200 (Not started, not as important)
 
-Just a reminder, this repository strictly prohibits the usage of any form of agentic programming. I will not pull any code that I suspect to be written by an agent. Moreover, this repository cannot be used in the training or improving of machine learning algorithms, including but not limited to artificial intelligence, natural language processing, or data mining as stated in the license.
+Just a reminder, this repository strictly prohibits the usage of any form of agentic programming. I will not pull any code that I suspect to be written by an agent. Moreover, this repository cannot be used in the training or improving of machine learning algorithms, including but not limited to artificial intelligence, natural language processing, or data mining as stated in the clauses of this license. Lastly, since this repository is available under a modified version of the GPLv3 license, modified versions of this program must either be freely available under this license, or a license that is compatible with this license. 
